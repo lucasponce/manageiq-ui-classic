@@ -543,12 +543,15 @@ class CatalogController < ApplicationController
       options[:header] = @right_cell_text
       options[:target_id] = st.id
       options[:target_kls] = st.class.name
-      options[:dialog_locals] = {
-        :api_submit_endpoint => "/api/service_catalogs/#{st.service_template_catalog_id}/service_templates/#{st.id}",
-        :api_action          => "order",
-        :cancel_endpoint     => "/catalog/explorer"
-      }
-      dialog_initialize(ra, options)
+      options[:dialog_locals] = DialogLocalService.new.determine_dialog_locals_for_svc_catalog_provision(
+        ra, st, svc_catalog_provision_finish_submit_endpoint
+      )
+
+      if Settings.product.old_dialog_user_ui
+        dialog_initialize(ra, options)
+      else
+        replace_right_cell(:action => "dialog_provision", :dialog_locals => options[:dialog_locals])
+      end
     else
       # if catalog item has no dialog and provision button was pressed from list view
       add_flash(_("No Ordering Dialog is available"), :warning)
@@ -808,6 +811,10 @@ class CatalogController < ApplicationController
   end
 
   private
+
+  def svc_catalog_provision_finish_submit_endpoint
+    role_allows?(:feature => "miq_request_show_list", :any => true) ? "/miq_request/show_list" : "/catalog/explorer"
+  end
 
   def ansible_playbook?
     prov_type = params[:st_prov_type] ? params[:st_prov_type] : @record.prov_type

@@ -16,7 +16,6 @@ describe('dialogUserController', function() {
 
     spyOn(dialogFieldRefreshService, 'refreshField');
     spyOn(miqService, 'miqAjaxButton');
-    spyOn(miqService, 'redirectBack');
     spyOn(miqService, 'sparkleOn');
     spyOn(miqService, 'sparkleOff');
 
@@ -28,6 +27,10 @@ describe('dialogUserController', function() {
       apiSubmitEndpoint: 'submit endpoint',
       apiAction: 'order',
       cancelEndpoint: 'cancel endpoint',
+      finishSubmitEndpoint: 'finish submit endpoint',
+      resourceActionId: '789',
+      targetId: '987',
+      targetType: 'targettype',
     });
   }));
 
@@ -37,7 +40,10 @@ describe('dialogUserController', function() {
     });
 
     it('requests the current dialog based on the service template', function() {
-      expect(API.get).toHaveBeenCalledWith('/api/service_dialogs/1234', {expand: 'resources', attributes: 'content'});
+      expect(API.get).toHaveBeenCalledWith(
+        '/api/service_dialogs/1234?resource_action_id=789&target_id=987&target_type=targettype',
+        {expand: 'resources', attributes: 'content'}
+      );
     });
 
     it('resolves the request and stores the information in the dialog property', function() {
@@ -62,7 +68,7 @@ describe('dialogUserController', function() {
         'dialogData',
         ['dialogName'],
         '/api/service_dialogs/',
-        '1234'
+        {dialogId: '1234', resourceActionId: '789', targetId: '987', targetType: 'targettype'}
       );
     });
   });
@@ -84,6 +90,7 @@ describe('dialogUserController', function() {
 
     context('when the API call succeeds', function() {
       beforeEach(function() {
+        spyOn(miqService, 'redirectBack');
         spyOn(API, 'post').and.returnValue(Promise.resolve('awesome'));
       });
 
@@ -111,7 +118,9 @@ describe('dialogUserController', function() {
       it('redirects to the miq_request screen', function(done) {
         $controller.submitButtonClicked();
         setTimeout(function() {
-          expect(miqService.redirectBack).toHaveBeenCalledWith('Dialog submitted successfully!', 'info', 'cancel endpoint');
+          expect(miqService.redirectBack).toHaveBeenCalledWith(
+            'Order Request was Submitted', 'info', 'finish submit endpoint'
+          );
           done();
         });
       });
@@ -119,6 +128,7 @@ describe('dialogUserController', function() {
 
     context('when the API call fails', function() {
       beforeEach(function() {
+        spyOn(miqService, 'redirectBack');
         spyOn(API, 'post').and.returnValue(Promise.reject('not awesome'));
         spyOn(window, 'add_flash');
       });

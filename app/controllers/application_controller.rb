@@ -388,7 +388,7 @@ class ApplicationController < ActionController::Base
     options = from_additional_options(params[:additional_options] || {})
     if params[:explorer]
       params[:action] = "explorer"
-      @explorer = params[:explorer] == "true"
+      @explorer = params[:explorer].to_s == "true"
     end
 
     # if params[:active_tree] && defined? get_node_info
@@ -969,6 +969,7 @@ class ApplicationController < ActionController::Base
       data.each do |r|
         r_group = r.rpt_group == "Custom" ? "#{@sb[:grp_title]} - Custom" : r.rpt_group # Get the report group
         title = r_group.reverse.split('-', 2).collect(&:reverse).collect(&:strip).reverse
+        next if mode == "menu" && title[1] == "Custom"
         if @temp_title != title[0]
           @temp_title = title[0]
           reports = []
@@ -1026,7 +1027,8 @@ class ApplicationController < ActionController::Base
       else
         temp2 = group.settings[:report_menus]
       end
-      rptmenu = temp.concat(temp2)
+      # don't add custom reports to rptmenu when building tree for menu editor form
+      rptmenu = mode == "menu" ? temp2 : temp.concat(temp2)
     end
     # move Customs folder as last item in tree
     rptmenu[0].each do |r|
@@ -1097,7 +1099,7 @@ class ApplicationController < ActionController::Base
       end
       new_row = {
         :id       => list_row_id(row),
-        :long_id  => row['id'],
+        :long_id  => row['id'].to_s,
         :cells    => [],
         :quadicon => quadicon
       }
@@ -1122,7 +1124,7 @@ class ApplicationController < ActionController::Base
         item = listicon_item(view, row['id'])
         icon, icon2, image, picture = listicon_glyphicon(item)
         image = "100/#{(@listicon || view.db).underscore}.png" if icon.nil? && image.nil? # TODO: we want to get rid of this
-        icon = nil if %w(pxe).include? params[:controller]
+        icon = nil if %w(pxe middleware_server).include?(params[:controller]) # TODO: adding exceptions here is a wrong approach
         new_row[:cells] << {:title => _('View this item'),
                             :image   => ActionController::Base.helpers.image_path(image.to_s),
                             :picture => ActionController::Base.helpers.image_path(picture.to_s),
@@ -1147,7 +1149,7 @@ class ApplicationController < ActionController::Base
           value = row[col] || ' '
           new_row[:cells] << {:span => severity_span_class(value), :text => severity_title(value)}
         when 'state'
-          celltext = row[col].titleize
+          celltext = row[col].to_s.titleize
         when 'hardware.bitness'
           celltext = row[col] ? "#{row[col]} bit" : ''
         when 'image?'
@@ -1454,11 +1456,21 @@ class ApplicationController < ActionController::Base
       @search_text = params[:search_text].blank? ? nil : params[:search_text].strip
     end
 
+    return nil unless @search_text
+
+    # Don't apply sub_filter when viewing sub-list view of a CI.
+    # This applies when search is active and you go Vm -->
+    # {Processes,Users,...} in that case, search shoult NOT be applied.
+    # FIXME: This needs to be changed to apply search in some explicit way.
+    return nil if @display
+
+    # If we came in through Chart pop-up menu click we don't filter records.
+    return nil if session[:menu_click]
+
     # Build sub_filter where clause from search text
-    if @search_text && (
-        (!@parent && @lastaction == "show_list" && !session[:menu_click]) ||
-        (@explorer && !session[:menu_click]) ||
-        %w(miq_policy vm_infra).include?(@layout)) # Added to handle search text from list views in control explorer
+    if (!@parent && @lastaction == "show_list") ||  # This part is for the Hosts screen.
+       @explorer                                    # In explorer screens we have search (that includes vm_infra and
+                                                    # Control/Explorer/Policies)
 
       stxt = @search_text.gsub("_", "`_")                 # Escape underscores
       stxt.gsub!("%", "`%")                               #   and percents
@@ -1473,14 +1485,15 @@ class ApplicationController < ActionController::Base
                "%#{stxt}%"
              end
 
-      if ::Settings.server.case_sensitive_name_search
-        sub_filter = ["#{view.db_class.table_name}.#{view.col_order.first} like ? escape '`'", stxt]
-      else
-        # don't apply sub_filter when viewing sub-list view of a CI
-        sub_filter = ["lower(#{view.db_class.table_name}.#{view.col_order.first}) like ? escape '`'", stxt.downcase] unless @display
-      end
+      return (
+        if ::Settings.server.case_sensitive_name_search
+          ["#{view.db_class.table_name}.#{view.col_order.first} like ? escape '`'", stxt]
+        else
+          ["lower(#{view.db_class.table_name}.#{view.col_order.first}) like ? escape '`'", stxt.downcase]
+        end
+      )
     end
-    sub_filter
+    nil
   end
 
   def perpage_key(dbname)
@@ -2212,7 +2225,7 @@ class ApplicationController < ActionController::Base
 
   def get_record_display_name(record)
     return record.label                      if record.respond_to?("label")
-    return record.description                if record.respond_to?("description") && !record.description.nil?
+    return record.description                if record.respond_to?("description") && record.description.present?
     return record.ext_management_system.name if record.respond_to?("ems_id")
     return record.title                      if record.respond_to?("title")
     return record.name                       if record.respond_to?("name")

@@ -392,7 +392,7 @@ module ApplicationHelper
                  MiqReportResult).include?(view.db) &&
               %w(report automation_manager).include?(request.parameters[:controller])
           suffix = ''
-          suffix = x_node if params[:tab_id] == "saved_reports"
+          suffix = x_node if params[:tab_id] == "saved_reports" || params[:pressed] == "miq_report_run"
           return "/" + request.parameters[:controller] + "/tree_select?id=" + suffix
         elsif %w(User MiqGroup MiqUserRole Tenant).include?(view.db) &&
               %w(ops).include?(request.parameters[:controller])
@@ -1634,7 +1634,8 @@ module ApplicationHelper
       :embedded   => @embedded,
       :showlinks  => @showlinks,
       :policy_sim => @policy_sim,
-      :lastaction => @lastaction
+      :lastaction => @lastaction,
+      :display    => @display
     )
     @report_data_additional_options.with_row_button(@row_button) if @row_button
     @report_data_additional_options.with_menu_click(params[:menu_click]) if params[:menu_click]
@@ -1670,6 +1671,10 @@ module ApplicationHelper
     # @view.db
     # @parent
     @lastaction = quadicon_options[:lastaction]
+
+    # we also need to pass the @display because @display passed throught the
+    # session does not persist the null value
+    @display = quadicon_options[:display]
   end
 
   # Wrapper around jquery-rjs' remote_function which adds an extra .html_safe()

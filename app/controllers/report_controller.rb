@@ -367,7 +367,7 @@ class ReportController < ApplicationController
   def rebuild_trees
     rep = MiqReportResult.with_current_user_groups_and_report.maximum("created_on")
     return false unless rep
-    build_trees = rep > @sb[:rep_tree_build_time]
+    build_trees = @sb[:rep_tree_build_time].nil? || rep > @sb[:rep_tree_build_time]
     # save last tree build time to decide if tree needs to be refreshed automatically
     @sb[:rep_tree_build_time] = Time.now.utc if build_trees
     build_trees
@@ -641,7 +641,7 @@ class ReportController < ApplicationController
   end
 
   def reports_menu_in_sb
-    @sb[:rpt_menu]  = populate_reports_menu
+    @sb[:rpt_menu]  = populate_reports_menu("reports", "default")
     @sb[:grp_title] = reports_group_title
   end
 
